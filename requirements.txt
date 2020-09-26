@@ -1,6 +1,2 @@
-#
-####### example-requirements.txt #######
-#
-###### Requirements without Version Specifiers ######
 pandas
 numpy
