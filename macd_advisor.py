@@ -26,7 +26,6 @@ st.text('Data loaded successfully')
 
 df.dropna(axis=0)
 df = df.swaplevel(axis='columns').round(2)
-df.to_csv('cache.csv')
 
 if st.checkbox('Show raw data'):
     st.subheader('Raw data')
