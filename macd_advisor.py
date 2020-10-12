@@ -1,14 +1,3 @@
-# st.subheader('Number of pickups by hour')
-# hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
-# st.bar_chart(hist_values)
-#
-# # Some number in the range 0-23
-# hour_to_filter = st.slider('hour', 0, 23, 17)
-# filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
-#
-# st.subheader('Map of all pickups at %s:00' % hour_to_filter)
-# st.map(filtered_data)
-
 import yfinance as yf
 import pandas as pd
 import math
@@ -93,7 +82,7 @@ st.write(buys)
 st.sidebar.subheader('Tweaks')
 rel_error = st.sidebar.slider('Relative error (default: 0.1)', min_value=0.0, max_value=1.0, value=0.1, step=0.1)
 
-# ahora a plotear, la idea serai que plotee solamente el que yo elijo de la lista, solo macd (o tambien curva de
+# ahora a plotear, la idea seria que plotee solamente el que yo elijo de la lista, solo macd (o tambien curva de
 # precios?)
 
 # plt.plot(df.ds, macd, label='GOLD MACD', color='#EBD2BE')
