@@ -1,36 +1,102 @@
-import streamlit as st
+# st.subheader('Number of pickups by hour')
+# hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
+# st.bar_chart(hist_values)
+#
+# # Some number in the range 0-23
+# hour_to_filter = st.slider('hour', 0, 23, 17)
+# filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
+#
+# st.subheader('Map of all pickups at %s:00' % hour_to_filter)
+# st.map(filtered_data)
+
+import yfinance as yf
 import pandas as pd
-import numpy as np
+import math
+import streamlit as st
 
-st.title('Uber pickups in NYC')
+st.title('MACD strategy advisor on CEDEARs')
 
-DATE_COLUMN = 'date/time'
-DATA_URL = ('https://s3-us-west-2.amazonaws.com/'
-            'streamlit-demo-data/uber-raw-data-sep14.csv.gz')
+# yf accepts lists as well
 
-@st.cache
-def load_data(nrows):
-    data = pd.read_csv(DATA_URL, nrows=nrows)
-    lowercase = lambda x: str(x).lower()
-    data.rename(lowercase, axis='columns', inplace=True)
-    data[DATE_COLUMN] = pd.to_datetime(data[DATE_COLUMN])
-    return data
+ticks = '''AVY KOF LLY HL IBN ING ERIC NUE SNA TIIAY TEF TRV AAPL AMZN TSLA MELI GOLD WFC PBR KO
+PFE MSFT VALE NFLX BBD V BA DIS HMY JPM NOK XOM INTC BABA GLOB ARCO WMT GOOGL C MCD FB AGRO ERJ AMD DESP AUY QCOM
+T UN ABEV NVDA X MMM OGZPY AXP BG AZN GE MO PG PYPL ITUB SNE IBM JNJ AIG TWTR BBVA CSCO ABT EBAY GILD SNAP AMX CVX
+TRIP COST RDSB.L HSBC PEP BP LMT NKE ORCL VZ CRM HD TOT BIDU CL SLB CHL GSK TX LVS HPQ LYG CS AMGN SBUX DE FDX CAT TXN
+BCS NEM RIO UGP BSBR FCX JD BRFS XRX VOD TSU GGB CX GS MRK TSM ADBE BIIB YELP SID NVS BHP MDT INFY TGT TM USB SBS DD
+NGG CBD BMY HNP FMX SAP PTR VIV SUZ HMC SNP CAR CDE YZCAY SIEGY CHA MSI GRMN TMO HON VRSN DEO KMB ADP BAC RTX'''
 
-data_load_state = st.text('Loading data...')
-data = load_data(10000)
-data_load_state.text("Done! (using st.cache)")
+# si existe el archivo entonces no descargar. o googlear algun sistema de cache
+
+st.text('Loading data...')
+df = yf.download(tickers=ticks, period='200d')[['Close']]
+df = df.set_index(pd.DatetimeIndex(df.index.values))
+df.index.name = 'Dates'
+st.text('Data loaded successfully')
+
+# change Close to the 2nd level so i can the add MACD and Signal
+
+df.dropna(axis=0)
+df = df.swaplevel(axis='columns').round(2)
+df.to_csv('cache.csv')
 
 if st.checkbox('Show raw data'):
     st.subheader('Raw data')
-    st.write(data)
+    st.write(df)
 
-st.subheader('Number of pickups by hour')
-hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
-st.bar_chart(hist_values)
+# i think i can shrink it a bit by creating a stocks list and iterating over it as strings and then using that in the
+# loop
 
-# Some number in the range 0-23
-hour_to_filter = st.slider('hour', 0, 23, 17)
-filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
+for i in range(len(df.columns.values)):
+    ShortEMA = df[df.columns.values[i][0]].Close.ewm(span=12, min_periods=0, adjust=False).mean()
+    LongEMA = df[df.columns.values[i][0]].Close.ewm(span=26, adjust=False).mean()
+    MACD = (ShortEMA - LongEMA).round(2)
+    signal = MACD.ewm(span=9, adjust=False).mean().round(2)
+    df[df.columns.values[i][0], 'MACD'] = MACD
+    df[df.columns.values[i][0], 'Signal'] = signal
 
-st.subheader('Map of all pickups at %s:00' % hour_to_filter)
-st.map(filtered_data)
+# by default pandas puts new columns at the end so this is to rearrange
+df = df.sort_index(axis=1)
+
+stocks = []
+for i in range(len(df.columns)):
+    stocks.append(df.columns[i][0])
+
+stocks = list(dict.fromkeys(stocks))
+
+
+# advice when to buy according to macd
+
+def buy_or_not(data, dif, buys=[], nothings=[]):
+    for stock in stocks:
+        signal1d = data[stock, 'Signal'][-1]
+        macd1d = data[stock, 'MACD'][-1]
+        signal2d = data[stock, 'Signal'][-2]
+        macd2d = data[stock, 'MACD'][-2]
+        if data[stock, 'Close'][-1] == 0 or math.isnan(signal1d):
+            nothings.append('No values for ' + stock)
+        elif signal1d > macd1d and math.isclose(signal1d, macd1d, rel_tol=dif):
+            buys.append('Buy ' + stock)
+        elif signal1d == macd1d and signal2d > macd2d:
+            buys.append('Buy ' + stock)
+        elif signal1d < macd1d and signal2d > macd2d:
+            buys.append('Buy ' + stock)
+        else:
+            nothings.append('Nothing to do with  ' + stock)
+    return nothings, buys
+
+
+nothings, buys = buy_or_not(df, 0.1)
+
+st.subheader('These are the results:')
+st.write(buys)
+
+st.sidebar.subheader('Tweaks')
+rel_error = st.sidebar.slider('Relative error (default: 0.1)', min_value=0.0, max_value=1.0, value=0.1, step=0.1)
+
+# ahora a plotear, la idea serai que plotee solamente el que yo elijo de la lista, solo macd (o tambien curva de
+# precios?)
+
+# plt.plot(df.ds, macd, label='GOLD MACD', color='#EBD2BE')
+# plt.plot(df.ds, exp3, label='Signal Line', color='#E5A4CB')
+# plt.legend(loc='upper left')
+# plt.show()
